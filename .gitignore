@@ -7,3 +7,6 @@ mbed-os
 CONTRIBUTING.mbed
 LICENSE
 
+compile_commands.json
+.clangd
+.cache
