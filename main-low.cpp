@@ -1,84 +1,136 @@
-#include "mbed.h"
-#include <stdint.h>
+// direct access to low level STM32H7XX
+#include "stm32h7xx_hal.h"
+#include "stm32h7xx_hal_gpio.h"
 
-// low-level structure representing a GPIO (valid for STM32L4XX)
-struct GPIO
+/* Common Error codes */
+#define BSP_ERROR_NONE                    0
+
+/* Definitions for leds */
+#define LED1_GPIO_PORT                   GPIOI
+#define LED1_PIN                         GPIO_PIN_12
+
+#define LED2_GPIO_PORT                   GPIOI
+#define LED2_PIN                         GPIO_PIN_13
+
+#define LED3_GPIO_PORT                   GPIOI
+#define LED3_PIN                         GPIO_PIN_14
+
+#define LED4_GPIO_PORT                   GPIOI
+#define LED4_PIN                         GPIO_PIN_15
+
+#define LEDx_GPIO_CLK_ENABLE()           __HAL_RCC_GPIOI_CLK_ENABLE()
+
+typedef enum
 {
-  uint32_t MODER;       /*!< GPIO port mode register,               Address offset: 0x00      */
-  uint32_t OTYPER;      /*!< GPIO port output type register,        Address offset: 0x04      */
-  uint32_t OSPEEDR;     /*!< GPIO port output speed register,       Address offset: 0x08      */
-  uint32_t PUPDR;       /*!< GPIO port pull-up/pull-down register,  Address offset: 0x0C      */
-  uint32_t IDR;         /*!< GPIO port input data register,         Address offset: 0x10      */
-  uint32_t ODR;         /*!< GPIO port output data register,        Address offset: 0x14      */
-  uint32_t BSRR;        /*!< GPIO port bit set/reset  register,     Address offset: 0x18      */
-  uint32_t LCKR;        /*!< GPIO port configuration lock register, Address offset: 0x1C      */
-  uint32_t AFR[2];      /*!< GPIO alternate function registers,     Address offset: 0x20-0x24 */
-  uint32_t BRR;         /*!< GPIO Bit Reset register,               Address offset: 0x28      */
-  uint32_t ASCR;        /*!< GPIO analog switch control register,   Address offset: 0x2C     */
-};
+  LED1 = 0U,
+  LED_GREEN = LED1,
+  LED2 = 1U,
+  LED_ORANGE = LED2,
+  LED3 = 2U,
+  LED_RED = LED3,
+  LED4 = 3U,
+  LED_BLUE = LED4,
+  LEDn
+} Led_TypeDef;
 
-// definition of low level addresses (valid for STM32L4XX)
-#define PERIPH_BASE               (0x40000000UL) /*!< Peripheral base address */ 
-#define AHB1PERIPH_BASE           (PERIPH_BASE + 0x00020000UL)
-#define RCC_BASE                  (AHB1PERIPH_BASE + 0x1000UL)
-#define AHB2ENR_OFFSET            0x4C
-#define AHB2PERIPH_BASE           (PERIPH_BASE + 0x08000000UL)
-#define GPIOA_BASE                (AHB2PERIPH_BASE + 0x0000UL)
+static GPIO_TypeDef* LED_PORT[LEDn] = { LED1_GPIO_PORT,
+                                        LED2_GPIO_PORT,
+                                        LED3_GPIO_PORT,
+                                        LED4_GPIO_PORT};
 
-// RCC position/flag for enabling clock for GPIO port A
-#define RCC_AHB2ENR_GPIOAEN_Pos   (0U)
-#define RCC_AHB2ENR_GPIOAEN_Msk   (0x1UL << RCC_AHB2ENR_GPIOAEN_Pos) /*!< 0x00000001 */
-#define RCC_AHB2ENR_GPIOAEN       RCC_AHB2ENR_GPIOAEN_Msk
+static const uint32_t LED_PIN[LEDn] = { LED1_PIN,
+                                        LED2_PIN,
+                                        LED3_PIN,
+                                        LED4_PIN};
+int32_t BSP_LED_Init(Led_TypeDef Led)
+{
+  int32_t ret = BSP_ERROR_NONE;
+  GPIO_InitTypeDef  GPIO_InitStruct;
 
-// mode definitions
-#define LL_GPIO_MODE_OUTPUT   GPIO_MODER_MODE0_0
-#define LL_GPIO_PULL_NO       (0x00000000U) 
-    
-// definitions for selecting pin #5
-#define GPIO_BSRR_BS5_Pos     (5U)
-#define GPIO_BSRR_BS5_Msk     (0x1UL << GPIO_BSRR_BS5_Pos)            /*!< 0x00000020 */
-#define GPIO_BSRR_BS5         GPIO_BSRR_BS5_Msk
-// STM32 helpers
-#define STM_PORT(X) (((uint32_t)(X) >> 4) & 0xF)
-#define STM_PIN(X)  ((uint32_t)(X) & 0xF)
+  /* Enable the GPIO_LED clock */
+  LEDx_GPIO_CLK_ENABLE();
+
+  /* Configure the GPIO_LED pin */
+  GPIO_InitStruct.Pin = LED_PIN[Led];
+  GPIO_InitStruct.Mode = GPIO_MODE_OUTPUT_PP;
+  GPIO_InitStruct.Pull = GPIO_PULLUP;
+  GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_VERY_HIGH;
+
+  HAL_GPIO_Init(LED_PORT[Led], &GPIO_InitStruct);
+
+  /* By default, turn off LED */
+  HAL_GPIO_WritePin(LED_PORT[Led], LED_PIN[Led], GPIO_PIN_SET);
+ return ret;
+}
+
+/**
+  * @brief  Turns selected LED On.
+  * @param  Led LED to be set on
+  *          This parameter can be one of the following values:
+  *            @arg  LED1
+  *            @arg  LED2
+  *            @arg  LED3
+  *            @arg  LED4
+  * @retval BSP status
+  */
+int32_t  BSP_LED_On(Led_TypeDef Led)
+{
+  int32_t ret = BSP_ERROR_NONE;
+
+  HAL_GPIO_WritePin (LED_PORT [Led], (uint16_t)LED_PIN [Led], GPIO_PIN_RESET);
+  return ret;
+}
+
+/**
+  * @brief  Turns selected LED Off.
+  * @param  Led LED to be set off
+  *          This parameter can be one of the following values:
+  *            @arg  LED1
+  *            @arg  LED2
+  *            @arg  LED3
+  *            @arg  LED4
+  * @retval BSP status
+  */
+int32_t  BSP_LED_Off(Led_TypeDef Led)
+{
+  int32_t ret = BSP_ERROR_NONE;
+  HAL_GPIO_WritePin (LED_PORT [Led], (uint16_t)LED_PIN [Led], GPIO_PIN_SET);
+  return ret;
+}
 
 int main() 
 {
-    // led 1 is on pin 0x05
-    constexpr unsigned int ledPin = 0x05;
-    constexpr unsigned int ledPinMask = 1 << ledPin;
+  
+    /* STM32H7xx HAL library initialization:
+       - Systick timer is configured by default as source of time base, but user
+         can eventually implement his proper time base source (a general purpose
+         timer for example or other time source), keeping in mind that Time base
+         duration should be kept 1ms since PPP_TIMEOUT_VALUEs are defined and
+         handled in milliseconds basis.
+       - Set NVIC Group Priority to 4
+       - Low Level Initialization
+     */
+    HAL_Init();
 
-    // Pin 0x5 is on port A  
-    volatile GPIO* ledGPIO = (GPIO*) (GPIOA_BASE);
-    
-    // Enable RCC Clock for GPIO Port A
-    volatile uint32_t* RCC_AHB2ENR = (uint32_t*) (RCC_BASE + AHB2ENR_OFFSET);
-    *RCC_AHB2ENR |= RCC_AHB2ENR_GPIOAEN;
-    
-    // configure the pin as output (mode LL_GPIO_MODE_OUTPUT) 
-    uint32_t dirClearMask = (GPIO_MODER_MODE0 << (GPIO_BSRR_BS5_Pos * 2U));
-    uint32_t dirSetMask = (LL_GPIO_MODE_OUTPUT << (GPIO_BSRR_BS5_Pos * 2U));
-    MODIFY_REG(ledGPIO->MODER, dirClearMask, dirSetMask);
-    
-    // set pull mode to no pull
-    uint32_t pullClearMask = (GPIO_PUPDR_PUPD0 << (GPIO_BSRR_BS5_Pos * 2U));
-    uint32_t pullSetMask =(LL_GPIO_PULL_NO << (GPIO_BSRR_BS5_Pos * 2U));    
-    MODIFY_REG(ledGPIO->PUPDR, pullClearMask, pullSetMask);
+    // initialize the led
+    Led_TypeDef led = LED3;
+    BSP_LED_Init(led); 
 
+    // toggle in a loop
+    bool on = true;
     while (true) {
-        // toggle the led by setting and resetting it
-        // alternatively in each iteration
-        uint32_t pin_state = ((ledGPIO->ODR & ledPinMask) ? 1 : 0);
-        if (pin_state) {
-            ledGPIO->BSRR = ledPinMask << 16;  // turning off
-        } else {
-            ledGPIO->BSRR = ledPinMask;  // turning on
+        if (on) {
+            BSP_LED_On(led);
+        } 
+        else {
+            BSP_LED_Off(led);
         }
+        on = !on;
 
         // busy wait for the blinking interval time
         // using a rough estimation...
         // and dependent on the CPU speed.
-        for (uint64_t i = 0; i < 10000000; i++) {
+        for (uint64_t i = 0; i < 50000000; i++) {
             asm("nop");
         }
     }    
